@@ -6,3 +6,6 @@ praw.ini
 .venv/
 __pycache__/
 *.pyc
+
+# local working dir (duplicates decisions/)
+scratch_decisions/

@@ -30,20 +30,24 @@ learnable distinction rather than an arbitrary one I imposed.
 ## 2. Labels
 
 Three labels, assigned by a post's **dominant function**, not its topic. Examples below are
-paraphrased from real posts read during the pre-annotation review (anonymized; replace with
-your own collected, anonymized examples).
+**real posts from the collected pool** (`data/raw_posts.csv`), cited by Reddit id so each is
+auditable.
 
 ### Analysis (DD)
-*A post whose main purpose is to argue a reasoned, evidence-backed case about a stock or trade.*
-- A KVYO write-up citing high revenue growth, profitability, and a sub-3x price-to-sales
-  multiple as the reason it's mispriced.
-- A Texas Pacific Land post built around quiet insider buying as the core thesis.
+*A post whose main purpose is to argue a reasoned, evidence-backed case about a stock or trade
+— one that would stand on its own even if you stripped out the poster's position.*
+- `le235t` "GME Institutions Hold 177% of Float — Why the Squeeze is not Squoze" — walks float
+  mechanics with Bloomberg data and a worked example.
+- `mbx510` "SLV is a complete scam… the silver market is rigged" — structured argument on media
+  incentives and ETF mechanics, with no personal bet at its center.
 
 ### Hype / Reaction (YOLO)
 *A reactive, low-substance post centered on a personal bet, an outcome, or pure conviction,
 with little or no supporting reasoning.*
-- "Yolo'd my life savings into three stocks last week."
-- "With $300k, hitting $1M is basically inevitable."
+- `1r35env` "If AMZN goes up 8% tomorrow this will be worth $1 million. If not, I'm cooked" — a
+  bet and a hope, no analysis.
+- `l71fl1` "Like this post if you are holding 💎 the real squeeze is yet to happen 🚀" — a pure
+  morale/rally post.
 
 ### Discussion / Opinion
 *A post whose dominant function is to open a topic to the community — a genuine
@@ -147,7 +151,22 @@ hand against the codebook and corrected. This review is the documented labeling 
 corrections are tracked (see §7.2).
 
 **Target counts.** Aim for ~70+ examples per label (≥210 total) so no class is trivially small.
-Final per-label counts are reported in the README.
+
+**Final labeled distribution (Milestone 2)** — `data/wsb_labeled.csv`, 283 posts after dropping
+90 out-of-frame (meme/news/AMA/meta/megathread) from a 373-post pool:
+
+| Label | Count | Share |
+|-------|------:|------:|
+| Hype | 141 | 49.8% |
+| Analysis | 110 | 38.9% |
+| Discussion | 32 | 11.3% |
+
+≥200 total and no class >70% (max 49.8%), so the imbalance rule passes. **Discussion is the
+genuinely rare class** here: even a targeted Discussion-flair oversample yielded mostly
+megathreads, shitposts, and mis-flaired Analysis/Hype (only ~6 of 23 were real Discussion).
+Per the fallback above we keep all real data, report the exact distribution, and lean on
+macro-F1 (which weights classes equally) so the minority class is not hidden. The split is
+stratified, so the test set preserves these proportions.
 
 **If a label is underrepresented after 200 examples** (DD is the realistic risk — genuine DD is
 a small share of all posts):
@@ -188,6 +207,21 @@ Why these and not just accuracy: the task is an imbalanced, multi-class problem 
 valuable class is the minority one, so we need metrics that are per-class and balance-aware,
 plus a confusion matrix to diagnose *how* it fails for the error analysis.
 
+**Measurement protocol (so every number is reproducible and the pass/fail is defensible):**
+- **Macro-F1** = the unweighted mean of the three per-class F1 scores.
+- **Fixed split.** The 70/15/15 stratified split uses a **fixed random seed** (recorded in the
+  notebook), so the test set is deterministic across runs.
+- **Deterministic baseline.** The Groq `llama-3.3-70b-versatile` zero-shot baseline runs at
+  **temperature = 0** with a **frozen prompt** (the exact string is committed). Outputs that
+  cannot be parsed to one of the three labels (or are refusals) are **counted as wrong** and
+  mapped to a fixed fallback class for the confusion matrix — never silently dropped.
+- **Uncertainty.** Because the test set is small (~52 posts; see the caveat in §6.1), every
+  headline metric is reported with a **bootstrap 95% confidence interval** (1000 resamples of
+  the test set), and the macro-F1 headline is **cross-checked with stratified 5-fold CV** on the
+  combined train+val data. Thresholds are judged against these, not a single fragile point.
+- **Rounding.** Metrics are reported to **2 decimals**; a threshold is met only if the rounded
+  value is `≥` the bar (e.g., 0.695 → 0.70 → meets 0.70; 0.694 → 0.69 → does not).
+
 ---
 
 ## 6. Definition of Success
@@ -199,9 +233,10 @@ and measured once on the held-out test set.
 **Genuinely useful (the bar this project targets):**
 - Macro-F1 ≥ **0.70** on the test set.
 - DD (the valuable minority class) F1 ≥ **0.65**.
-- The fine-tuned model's macro-F1 **beats the zero-shot baseline** — or, if it does not, that
-  result is reported honestly as a finding (a 70B model with strong priors plausibly wins on
-  only ~200 training examples; that comparison is itself a core result).
+- The fine-tuned model's macro-F1 **beats the zero-shot baseline by a margin of ≥ 0.03**
+  (a smaller gap is treated as a tie, since it is within test-set noise) — or, if it does not,
+  that result is reported honestly as a finding (a 70B model with strong priors plausibly wins
+  on only ~200 training examples; that comparison is itself a core result).
 
 **Good enough to deploy in a real community tool (a higher bar):**
 - DD **precision ≥ 0.80** — a flair-suggestion tool that frequently mislabels hype as DD is
@@ -210,10 +245,24 @@ and measured once on the held-out test set.
 - Overall **macro-F1 ≥ 0.78**.
 
 ### 6.1 Review: are these criteria objective?
-Yes. Each criterion is a numeric threshold on a named metric, computed once on a held-out test
-set, and fixed before results are seen. At the end of the project each line resolves to a clean
-pass/fail (e.g., "macro-F1 = 0.73 ≥ 0.70 → met"), so whether the classifier hit its goals is an
-objective check, not a judgment call.
+**Mechanically, yes:** each criterion is a numeric threshold on a named metric, computed on a
+held-out test set, fixed before results are seen, so each resolves to a clean pass/fail (e.g.,
+"macro-F1 = 0.73 ≥ 0.70 → met"). But *objectively computable* is not the same as *objectively
+conclusive*, and two caveats are recorded honestly rather than hidden:
+
+1. **Small test set.** At ~350 labeled posts, a 15% stratified test set is ~52 posts, ~17 of
+   them DD — so the per-class DD thresholds (precision ≥ 0.80, recall ≥ 0.70, F1 ≥ 0.65) can
+   swing several points on a single example. This is why §5 reports **bootstrap 95% CIs** and a
+   **5-fold CV** cross-check and judges thresholds against those intervals; a point estimate that
+   only marginally clears a bar (CI straddling it) is reported as "borderline," not a clean pass.
+2. **Distribution scope.** The corpus is heavily skewed to the Jan-2021 GME saga (§3.1), so the
+   metrics are objective *for this distribution*. They validate "useful/deployable **on
+   r/wallstreetbets posts like these**," not unconditional real-world deployment; out-of-period /
+   non-GME generalization is logged as a known limitation, not claimed.
+
+With the measurement protocol (fixed seed, temperature 0, frozen prompt, defined handling of
+unparseable outputs, the ≥ 0.03 baseline margin, and the rounding rule) the remaining judgment
+is confined to the borderline-CI cases above, which are flagged as such.
 
 ---
 
@@ -223,19 +272,35 @@ This is an annotation/evaluation project, not an implementation project, so AI t
 three specific places rather than by generating code.
 
 ### 7.1 Label stress-testing
-Before annotating 200 examples, I give an LLM the three label definitions and the edge-case
-description from §3 and ask it to generate 5–10 posts that deliberately sit on the
-Analysis/Hype and Discussion/Analysis boundaries. If it produces any post I cannot classify
-cleanly with the current rules, that exposes a gap and I tighten the definitions *now*, before
-annotation. (A first pass of this happened by reading real posts, which surfaced the News
-category and the directional-conviction edge; the synthetic stress test is a second, harder
-pass.) Outcome and any definition changes are recorded here.
+**Method.** Give an LLM (Claude Opus 4.8) the three label definitions and the edge-case
+description from §3 and ask it to generate posts that deliberately sit on the Analysis/Hype,
+Discussion/Analysis, and Hype/Discussion boundaries. Any post I cannot classify cleanly with
+the current rules exposes a gap, and I tighten the definitions *now*, before annotation.
+
+**Executed (Milestone 1).** A first pass happened by reading 36 real posts (§3.1), which
+surfaced the flair-noise and rally-vs-question issues. A second, harder synthetic pass
+generated **8 boundary posts**; 6 resolved cleanly and **2 exposed gaps**, which were fixed
+by adding three tie-break rules to the codebook:
+- **Minimum substance (Appendix rule 4a):** a single unsupported causal assertion ("real
+  yields are rising, short it") is *not* evidence-based → **Hype**, not Analysis.
+- **Own-position questions (Appendix rule 2a):** "should I hold *my* calls?" is centered on a
+  personal bet → **Hype**; a question about a security/market in general → **Discussion**.
+- **Thesis + tacked-on question (Appendix rule 2):** a worked thesis ending in "what do you
+  think?" stays **Analysis** (the question→Discussion rule applies only with *no* worked thesis).
+
+These changes are reflected in §2, §3, and the Appendix codebook.
 
 ### 7.2 Annotation assistance
-**Yes — pre-labeling is used, and disclosed.** The primary pre-label is the post's **flair**,
-which is itself a form of automatic labeling and is disclosed as such. For posts with missing or
-sarcastic flair, an LLM may be used as a second-opinion pre-label. Tracking columns in the
-dataset:
+**Decision: yes — pre-labeling is used, and disclosed.** Two pre-label sources:
+1. **Flair (primary).** Each post's flair, mapped to a label per §4, is itself a form of
+   automatic labeling — every row in `data/raw_posts.csv` arrives with `label_source=flair`.
+2. **LLM (secondary).** **Claude Opus 4.8** is used as a second-opinion pre-label where flair
+   is missing, sarcastic, or contradicts the body, and to draft the per-row `notes` reasoning.
+   Those rows are marked `label_source=llm`.
+
+**Every row is then read and corrected by a human against the codebook** (`reviewed=true`)
+before it enters train/val/test — skimming is not review. The §7.4 log reports how many rows
+were pre-labeled by flair vs. LLM and how many changed on review. Tracking columns:
 
 | Column | Meaning |
 |--------|---------|
@@ -261,11 +326,25 @@ label) and ask an LLM to cluster them into error patterns. What I look for:
 pattern I read the actual posts behind it and confirm it against the confusion matrix and a
 minimum number of supporting examples; unsupported patterns are dropped from the writeup.
 
-### 7.4 AI usage disclosure (to be completed)
-A running log of where AI tools were used: (a) help designing/refining the label taxonomy and
-codebook; (b) label stress-testing (§7.1); (c) optional LLM pre-labeling counts (§7.2); (d)
-failure-pattern clustering (§7.3). The Groq `llama-3.3-70b-versatile` model is also used as the
-*evaluated* zero-shot baseline, which is part of the methodology rather than an authoring aid.
+### 7.4 AI usage disclosure (running log)
+Where AI tools were used (tool: **Claude Opus 4.8**, unless noted):
+- **(a) Label taxonomy & codebook** — refined the three labels and tie-break rules after a
+  36-post pre-annotation read (§3.1). *[Milestone 1, done]*
+- **(b) Label stress-testing** — generated 8 boundary posts; surfaced 2 gaps → 3 new codebook
+  rules (§7.1). *[Milestone 1, done]*
+- **(c) Collection tooling** — wrote `collect_data.py` (public-RSS collector). *[Milestone 1, done]*
+- **(d) LLM pre-labeling + review** — *[Milestone 2, done]* all **373** pooled posts were
+  bootstrap-labeled by flair, then every post was reviewed against the codebook by an LLM
+  (Claude Opus 4.8, 8 batched labelers). **155 / 373 (41%) labels were changed** on review
+  (90 reclassified to exclude — mostly megathreads/shitposts; the rest flipped between the 3
+  classes); 10 were flagged low-confidence. The 70 changed/low-confidence rows are listed in
+  `data/edge_cases.csv`. These are LLM labels (`reviewed_by=llm`); a **human pass is still
+  required** before training — start with `edge_cases.csv`.
+- **(e) Failure-pattern clustering** — over misclassified test posts, then human-verified (§7.3).
+  *[after evaluation]*
+
+Separately, the Groq `llama-3.3-70b-versatile` model is the *evaluated* zero-shot baseline —
+part of the methodology being measured, not an authoring aid.
 
 ---
 
@@ -282,12 +361,20 @@ Apply in order:
 1. **Research vs. flex.** If a post argues a thesis with evidence, it's **Analysis (DD)** even if
    the poster mentions their own position. If it's mainly a position/outcome with a one-liner of
    justification, it's **Hype**. Test: would it stand as an argument without the screenshot?
-2. **Genuine question.** If the post ends in a real open question and presents no worked thesis,
-   it's **Discussion**, even if it contains some reasoning.
+2. **Genuine question.** If the post ends in a real open question and presents **no worked
+   thesis**, it's **Discussion**, even if it contains some reasoning. *(2a — own-position
+   question: a question about whether to hold/sell the poster's **own** open position
+   ("should I hold my NVDA calls?") is centered on a personal bet → **Hype**; a question about
+   a security/market in general ("MU or SNDK?") → **Discussion**.)* A post that presents a
+   worked thesis **and** tacks on "what do you think?" stays **Analysis** — this rule applies
+   only when there is no worked thesis.
 3. **Validation-seeking.** A question-shaped post that is really showing off an active bet and
    fishing for agreement is **Hype**, not Discussion.
 4. **Substance, not quality.** "Analysis (DD)" means the post *makes an evidence-based argument* —
    it does not mean the argument is correct or good. A weak-but-real thesis is still DD.
+   *(4a — minimum substance: a **single unsupported causal assertion** ("real yields are rising,
+   short it") is not evidence-based. Analysis requires support — data, specific facts, a chain of
+   reasoning, or sourced claims. A lone assertion paired with a bet → **Hype**.)*
 5. **Rally vs. call-to-action.** A post centered on the poster's own bet/holding/emotion is
    **Hype** ("Like this if you're holding 💎🚀"); a post directing the crowd to do or think
    something is **Discussion** ("Preparing a class action — comment if you held GME").
