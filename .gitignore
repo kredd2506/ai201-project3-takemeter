@@ -1,0 +1,8 @@
+# secrets
+.env
+praw.ini
+
+# python
+.venv/
+__pycache__/
+*.pyc
