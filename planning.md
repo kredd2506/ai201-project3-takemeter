@@ -123,6 +123,31 @@ poster's own bet/outcome/emotion or a pure rally? → **Hype**; (3) else, opens 
 (question/opinion/PSA/call-to-action)? → **Discussion**. ~85% of the read sample
 single-labeled cleanly; the rest are logged edge cases.
 
+### 3.2 Difficult cases logged during annotation (Milestone 2)
+Real posts from `data/wsb_labeled.csv` / `data/edge_cases.csv` that gave genuine pause — the
+candidate labels and the call made. (The full list of 70 changed/low-confidence rows is in
+`data/edge_cases.csv`.)
+
+1. **`lak773` "Why we're still winning… [REASSURANCE DD]"** — *Analysis vs Hype.* Flaired DD and
+   cites short-sale mechanics, but the reasoning exists only to pump morale for holding.
+   **Decided Hype:** strip the position and no standalone argument remains (codebook rule 1 / 4a).
+2. **`1m9ajhj` "I made a $1.5M bet on Energy Fuels (UUUU)"** — *Hype vs Analysis.* Framed as a
+   personal YOLO, but the body is a real rare-earth thesis (only domestic heavy-RE producer,
+   DoD funding, named laggard competitors). **Decided Analysis:** the argument stands beyond the
+   bet. (Exact mirror of case 1.)
+3. **`la1o04` "There is no silver short squeeze. NONE. NEVER."** — *Discussion vs Analysis.*
+   Flaired Discussion and reads like an opinion/PSA, but backs the claim with the 1980 Hunt-
+   brothers corner and a Burry source. **Decided Analysis:** the evidence does the work.
+4. **`1tyyxbo` "RDDT — help me see the light"** — *Discussion vs Analysis.* Question framing
+   ("help me see the light"), but presents a worked thesis (market cap, API revenue, expiring
+   data deals, training-data moat). **Decided Analysis:** worked thesis overrides the tacked-on
+   question (codebook rule 2).
+5. **`laccqy` "WHY YOU DEFINITELY SHOULD NOT … FALL FOR …"** — *Analysis vs Discussion.* DD-flaired
+   and argumentative in tone, but it is a meta rant linking to *other* people's DDs with no
+   worked thesis of its own. **Decided Discussion:** opens a topic, presents no argument itself.
+6. **`1u748av` (Discussion-flaired short-bet post)** — *Discussion vs Hype.* **Decided Hype:**
+   centered on the poster's own short position and conspiracy speculation, not evidence.
+
 ---
 
 ## 4. Data Collection Plan
