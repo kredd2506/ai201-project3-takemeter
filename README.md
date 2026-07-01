@@ -4,6 +4,8 @@ A 3-class text classifier that sorts r/wallstreetbets (WSB) posts by their **dom
 is a post a reasoned argument, an emotional bet, or an open topic? Full design rationale is in
 [planning.md](planning.md); this README is the project write-up and **evaluation report**.
 
+**Demo video:** https://youtu.be/0qdgXrM4fs8
+
 ---
 
 ## 0. Community
