@@ -253,24 +253,32 @@ boundary-pinning "jargon-but-not-an-argument" cases, and/or class-weighted loss.
 
 ## 8. AI usage
 
-Two specific, directed uses (both disclosed; more in planning.md §7.4):
+Tool: **Claude Opus 4.8**. Two specific instances (also logged in planning.md §7.4).
 
-1. **Annotation pre-labeling + review (disclosed AI-assisted labeling).** I directed Claude Opus 4.8
-   to take each flair-bootstrapped post and re-label it against my codebook, in 8 batches, emitting
-   a label + confidence + one-line reason per post. **What I revised/overrode:** the review changed
-   **155/373 labels** — most importantly it caught **~50 daily/weekend megathreads** that carried a
-   "Discussion" flair (the flair bootstrap had accepted them) and dropped them as out-of-frame;
-   I also **overrode the label definitions themselves** after an AI label-stress-test surfaced two
-   gaps, adding the "own-position question → Hype" and "single-assertion → Hype" rules before
-   annotating. Every kept row carries `reviewed_by`, and the difficult rows were re-read by hand.
-2. **Failure-pattern clustering.** I pasted the 12 misclassified test posts to the LLM and asked for
-   common themes. **What I revised/overrode:** I **discarded** its "errors cluster by length"
-   pattern (false — errors span 367–4301 chars) and its "symmetric Analysis↔Hype confusion" claim
-   (the confusion is asymmetric, into Analysis) after re-reading each post; I kept only the patterns
-   I could verify against the confusion matrix.
+**Instance 1 — AI-assisted annotation (disclosed pre-labeling).**
+- *Directed:* gave the AI my codebook (label definitions + tie-break rules) and all 373
+  flair-bootstrapped posts in 8 batches, asking for one label (Analysis/Hype/Discussion/exclude)
+  plus a confidence and a one-line reason per post.
+- *Produced:* a label + confidence + reason for every post ([decisions/](decisions/)); it **changed
+  155 of 373 (41%)** from the flair bootstrap — notably catching **~50 daily/weekend megathreads**
+  that carried a "Discussion" flair and correctly marking them out-of-frame.
+- *Changed/overrode:* I treated these as **pre-labels, not final** — the 70 changed/low-confidence
+  rows were re-read by hand ([data/edge_cases.csv](data/edge_cases.csv)), and every kept row carries
+  a `reviewed_by` column. Separately, after an AI label-stress-test I **overrode my own label
+  definitions**, adding two codebook rules ("own-position question → Hype", "single unsupported
+  assertion → Hype") before annotating.
 
-The Groq `llama-3.3-70b-versatile` model is the *evaluated* zero-shot baseline (methodology), not an
-authoring aid.
+**Instance 2 — failure-pattern clustering.**
+- *Directed:* pasted the 12 misclassified test posts and asked the AI to identify common themes
+  (length, sarcasm, the confused label pair, low-information posts, etc.).
+- *Produced:* candidate patterns — an "Analysis over-prediction sink," a "Discussion collapse," plus
+  "errors cluster by length" and "symmetric Analysis↔Hype confusion."
+- *Changed/overrode:* I **discarded** "errors cluster by length" (false — errors span 367–4301
+  chars) and "symmetric confusion" (it's asymmetric, into Analysis) after re-reading each post, and
+  kept only the patterns I could verify against the confusion matrix (§6).
+
+*(Disclosure: the Groq `llama-3.3-70b-versatile` model is the **evaluated** zero-shot baseline —
+part of the methodology being measured — not an authoring aid.)*
 
 ---
 
