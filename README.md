@@ -6,6 +6,23 @@ is a post a reasoned argument, an emotional bet, or an open topic? Full design r
 
 ---
 
+## 0. Community
+
+**Choice:** [r/wallstreetbets](https://reddit.com/r/wallstreetbets), a ~20M-member subreddit where
+retail traders discuss stock and options bets.
+
+**Why it's a good fit for this task.** WSB's defining feature is that post *quality varies
+enormously* — and that variance is not random noise, it's a distinction the community itself
+recognizes and polices. The same feed contains rigorously argued investment theses ("here's my
+DD"), pure emotional gambling posts ("YOLO'd my life savings"), and open crowd questions ("which of
+these looks better?"), and members actively demand substance from each other ("where's the DD?").
+The platform even encodes the split in its flair system. That built-in, community-meaningful spread
+of quality makes "substance vs. hype vs. discussion" a **real, learnable distinction** rather than
+one imposed from outside — and the flair gives a free bootstrap label to start annotation from. It's
+also large, active, and fully public, so collecting 200+ text-bearing posts is feasible.
+
+---
+
 ## 1. Label taxonomy
 
 Each post is labeled by its **dominant function**, not its topic or stance. The defining test is
