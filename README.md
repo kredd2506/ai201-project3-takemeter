@@ -178,6 +178,52 @@ than 12/43.
    function over vocabulary.
 4. **More training data overall** — ~200 examples is very small to beat a 70B model's priors.
 
+## Reflection: what I intended to capture vs. what the model captured
+
+**What the labels were designed to capture — function, not vocabulary.** The taxonomy is defined
+by a post's *dominant pragmatic function*: does it *make an argument that stands on its own*
+(Analysis), *express a bet/emotion* (Hype), or *open a topic without a thesis or bet* (Discussion)?
+The codebook deliberately separates **substance from surface** — "would this stand as an argument
+if you stripped out the poster's position and screenshot?" A post loaded with tickers and TA can
+still be Hype; a plain-language question can be Discussion. That distinction is what makes the task
+interesting, and humans can apply it consistently (the annotation had no label conflicts).
+
+**What the model's decision boundary actually captures — lexical register.** With ~200 examples,
+the model learned the easiest available correlate of the labels: **topical/structural vocabulary**.
+Its effective rule is closer to *"does this read like finance-argument prose (tickers, valuation
+words, TA, structured reasoning)? → Analysis; does it read like a bet/meme (YOLO, lambo, positions,
+emojis, '$X into Y')? → Hype."* That correlates with function often enough to score ~0.79–0.85 F1
+on the two common classes, because Analysis and Hype happen to have distinct registers.
+
+**What it overfit to.** The surface correlation between *finance-argument register* and the
+Analysis label — to the point of ignoring explicit content. It labeled "*No analysis, this came to
+me in a dream … puts on $COIN*" as Analysis, and a conspiracy "theory" and a rant that merely
+*links to* other people's DD as Analysis. Vocabulary and prose-shape became the signal; the actual
+function became invisible. It also picked up register-adjacent cues (length, "DD/thesis/play"
+words) rather than reasoning.
+
+**What it missed.**
+- **The substance-vs-stance distinction itself** — the core thing the project set out to learn. It
+  cannot tell a real argument from argument-*shaped* hype, which is exactly the hard edge (§3) the
+  labels were built around.
+- **Discussion, entirely (0 predictions).** This is the deepest lesson: Discussion is defined
+  largely by *absence* — no worked thesis, no personal bet — and by pragmatic intent (opening a
+  topic). It has **no positive lexical signature** distinct from Analysis, so a feature-driven
+  boundary trained on ~22 examples never carves out a region for it; those posts fall into whichever
+  register they most resemble (usually Analysis).
+- **Irony and self-aware framing** ("the TA Gods spoke to me in my sleep"), the very cues a human
+  uses to catch hype dressed as DD.
+
+**The gap, stated plainly.** My labels are *semantically clean and human-learnable* but *not
+surface-separable at this data scale*. The model didn't learn a worse version of my boundary — it
+learned a **different, shallower boundary** (register) that happens to overlap with mine on the easy
+cases and diverges exactly on the hard ones. Notably the 70B zero-shot baseline shows the *same*
+directional gap (everything → Analysis, Discussion collapses), which says this is partly intrinsic
+to the task: classes defined by *absence* and *function* are structurally hard for text classifiers
+that key on the *presence* of features. Closing the gap needs either many more (and more diverse)
+examples that pin the function-vs-surface boundary explicitly — especially for Discussion — or a
+reframing of the taxonomy so each class has a positive, learnable signal.
+
 ## Reproduce
 
 ```bash
