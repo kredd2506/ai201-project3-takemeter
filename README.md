@@ -1,45 +1,131 @@
-# r/wallstreetbets Post Classifier — Substance vs. Hype vs. Discussion
+# TakeMeter — r/wallstreetbets Post Classifier (Substance vs. Hype vs. Discussion)
 
-A 3-class text classifier that sorts r/wallstreetbets posts by their **dominant function**:
+A 3-class text classifier that sorts r/wallstreetbets (WSB) posts by their **dominant function** —
+is a post a reasoned argument, an emotional bet, or an open topic? Full design rationale is in
+[planning.md](planning.md); this README is the project write-up and **evaluation report**.
 
-- **Analysis** — an evidence-based argument about a stock/trade that would stand on its own even
-  if you stripped out the poster's position.
-- **Hype** — a reactive, low-substance post centered on the poster's own bet, outcome, or emotion,
-  or a pure rally cry.
-- **Discussion** — a post that opens a topic to the community (question, opinion/PSA, call to
-  action) without a worked thesis or a personal bet at its center.
+---
 
-Label design, edge cases, and methodology are in [planning.md](planning.md). This README is the
-**evaluation report**.
+## 1. Label taxonomy
 
-## Dataset
+Each post is labeled by its **dominant function**, not its topic or stance. The defining test is
+*substance vs. surface*: "would this stand as an argument if you stripped out the poster's own
+position and screenshot?"
 
-283 hand-reviewed posts collected from public Reddit `.rss` feeds (no auth), flair-bootstrapped
-then LLM-reviewed against the codebook (see [planning.md §7.2](planning.md)). One file,
-[data/wsb_labeled.csv](data/wsb_labeled.csv); the notebook does the 70/15/15 stratified split.
+### Analysis
+*A post whose main purpose is a reasoned, evidence-backed case about a stock/trade/market that
+would stand on its own even if you removed the poster's position.*
+- `le235t` — "GME Institutions Hold 177% of Float — Why the Squeeze is not Squoze" (walks float
+  mechanics with Bloomberg data and a worked example).
+- `mbx510` — "SLV is a complete scam… the silver market is rigged" (structured argument on media
+  incentives and ETF mechanics; no personal bet at its center).
 
-| Label | Count | Share |
-|-------|------:|------:|
-| Hype | 141 | 49.8% |
-| Analysis | 110 | 38.9% |
-| Discussion | 32 | 11.3% |
-| **Total** | **283** | |
+### Hype
+*A reactive, low-substance post centered on the poster's own bet, outcome, or emotion, or a pure
+morale/rally cry, with little reasoning that stands on its own.*
+- `1r35env` — "If AMZN goes up 8% tomorrow this will be worth $1 million. If not, I'm cooked."
+- `l71fl1` — "Like this post if you are holding!! 💎 The real squeeze is yet to happen 🚀"
 
-No class exceeds 70%, but **Discussion is a genuine minority** — even a targeted oversample of
-Discussion-flaired posts yielded mostly megathreads/shitposts (only ~6 of 23 were real
-Discussion). This imbalance drives the results below.
+### Discussion
+*A post that opens a topic to the community — a genuine question, an opinion/PSA, or a call to
+action — without presenting a worked thesis or centering on the poster's own bet.*
+- `l6yrs3` — "WE are Preparing a Class Action LAWSUIT against Robinhood!" (a call to action).
+- `l7sx9e` — "It's time for a government bailout of GME shareholders at $10,000 per share…"
+  (an opinion/proposal put to the community for debate).
 
-## Models compared
+**Boundaries** are spelled out in the [planning.md](planning.md) codebook (§3, Appendix): e.g., a
+single unsupported assertion + a bet → Hype; a question about the poster's *own* position → Hype,
+but a general market question → Discussion; a worked thesis that also asks "thoughts?" → Analysis.
+The definitions are function-based so two annotators agree on most cases — verified during
+annotation (0 posts received conflicting labels).
 
-- **Baseline:** Groq `llama-3.3-70b-versatile`, zero-shot, temperature 0, prompt = the label
-  definitions from planning.md (output = label name only).
-- **Fine-tuned:** `distilbert-base-uncased`, fine-tuned on the training split.
+---
 
-Both evaluated **once** on the same 43-post stratified test set (Analysis 17 / Hype 21 /
-Discussion 5). Headline metric is **macro-F1** (planning.md §5) because the valuable class is the
-minority one and accuracy hides per-class failure.
+## 2. Annotated dataset
 
-## Results
+- **Source:** public r/wallstreetbets posts via Reddit's public `.rss`/Atom feeds — **no
+  authentication, public content only**. (planning.md originally specified the PRAW Data API; see
+  §9 Spec Reflection for why this diverged to RSS.) Feeds pulled: `top` (year/all), `hot`, `new`,
+  and flair-targeted `search` feeds. Scripts: [collect_data.py](collect_data.py),
+  [collect_discussion.py](collect_discussion.py).
+- **Labeling process:** each post's **flair** gives a bootstrap label (planning.md §4 mapping);
+  then **every post was reviewed against the codebook by an LLM** (Claude Opus 4.8, run in 8
+  batches), which corrected the noisy flair labels and dropped out-of-frame posts. **155 of 373
+  pooled posts (41%) changed on review** — 90 dropped as out-of-frame (megathreads, shitposts,
+  news, AMAs), the rest re-classified among the three labels. Per-post decisions with reasoning are
+  in [decisions/](decisions/); the difficult cases in [data/edge_cases.csv](data/edge_cases.csv).
+  Build step: [build_dataset.py](build_dataset.py) → [data/wsb_labeled.csv](data/wsb_labeled.csv)
+  (single file; the notebook does the 70/15/15 stratified split).
+- **Label distribution (283 posts):**
+
+  | Label | Count | Share |
+  |-------|------:|------:|
+  | Hype | 141 | 49.8% |
+  | Analysis | 110 | 38.9% |
+  | Discussion | 32 | 11.3% |
+  | **Total** | **283** | |
+
+  ≥200 examples and **no label exceeds 70%** (max 49.8%). Discussion is a genuine minority: even a
+  targeted oversample of Discussion-flaired posts was mostly megathreads/shitposts (~6 of 23 were
+  real Discussion), so genuine open-discussion is simply rare on WSB. This imbalance is the single
+  biggest driver of the results below.
+
+### Three genuinely difficult labeling decisions
+(Full log: [data/edge_cases.csv](data/edge_cases.csv); more in planning.md §3.2.)
+
+1. **`lak773` "Why we're still winning… [REASSURANCE DD]"** — *Analysis vs. Hype.* Flaired DD and
+   cites short-sale mechanics, but the reasoning exists only to pump morale for holding.
+   **Decided Hype** — strip the position and no standalone argument remains.
+2. **`1m9ajhj` "I made a $1.5M bet on Energy Fuels (UUUU)"** — *Hype vs. Analysis.* Framed as a
+   personal YOLO, but the body is a real rare-earth thesis (only domestic heavy-RE producer, DoD
+   funding, named competitors). **Decided Analysis** — the argument stands beyond the bet.
+3. **`la1o04` "There is no silver short squeeze. NONE."** — *Discussion vs. Analysis.* Reads like
+   an opinion/PSA, but backs the claim with the 1980 Hunt-brothers corner + a Burry source.
+   **Decided Analysis** — the evidence does the work.
+
+---
+
+## 3. Fine-tuning pipeline
+
+- **Base model:** `distilbert-base-uncased` (66M params).
+- **Platform:** Google Colab, **T4 GPU**, via the Hugging Face `transformers` `Trainer`.
+- **Input:** `title` + `"\n\n"` + `selftext`, truncated to 512 tokens.
+- **Config:** 3 epochs, learning rate 2e-5, batch size 16, weight decay 0.01, 70/15/15 stratified
+  split (seeded).
+
+**Key training decision — model size and epoch count, chosen for a tiny dataset.** With only ~198
+training examples, I kept a **small base model (DistilBERT, not BERT-large) and few epochs (3)** on
+purpose: a larger model or many epochs would memorize 200 posts and overfit rather than generalize.
+The observed behavior confirms the dataset — not the recipe — is the bottleneck: rather than
+overfitting to high train confidence, the model stayed **underfit** (test confidences clustered at
+~0.40–0.46, barely above the 0.33 random floor) and **collapsed the minority class** (0 Discussion
+predictions). That points the next lever at the *data/loss* (class weighting, more Discussion
+examples), not at more epochs — see §7.
+
+---
+
+## 4. Baseline comparison
+
+- **Approach:** zero-shot classification with Groq `llama-3.3-70b-versatile` — no training, the
+  model's priors only.
+- **Prompt:** a system prompt containing the three label definitions + decision rules copied from
+  planning.md, instructing the model to **output only the label name**. Decoding is **temperature
+  0** (deterministic, per planning.md §5). Full prompt in the notebook (Section 5).
+- **How results were collected:** each of the 43 test posts sent one at a time; the response is
+  lowercased and matched to a label; unparseable/refused outputs are counted as wrong (0 occurred).
+  Evaluated on the **same 43-post stratified test set** as the fine-tuned model.
+- **Why a 70B baseline:** it sets a strong bar — if fine-tuning ~200 examples can't beat a large
+  model's zero-shot priors, that comparison is itself a finding (planning.md §6).
+
+Locked results: [results/baseline_groq_zeroshot.md](results/baseline_groq_zeroshot.md).
+
+---
+
+## 5. Evaluation report
+
+Both models evaluated **once** on the same 43-post test set (Analysis 17 / Hype 21 / Discussion 5).
+Headline metric is **macro-F1** (planning.md §5): the classes are imbalanced and the valuable class
+is the minority, so accuracy alone hides per-class failure.
 
 ### Overall
 | Metric | Baseline (Groq 70B) | Fine-tuned (DistilBERT) | Δ |
@@ -49,15 +135,13 @@ minority one and accuracy hides per-class failure.
 | Weighted-F1 | 0.72 | 0.68 | −0.04 |
 
 ### Per-class (precision / recall / F1, support)
-| Label | Baseline P | Baseline R | Baseline F1 | Fine-tuned P | Fine-tuned R | Fine-tuned F1 | Support |
-|-------|-----------:|-----------:|------------:|-------------:|-------------:|--------------:|--------:|
+| Label | Base P | Base R | Base F1 | FT P | FT R | FT F1 | Support |
+|-------|-------:|-------:|--------:|-----:|-----:|------:|--------:|
 | Analysis | 0.67 | 0.94 | 0.78 | 0.62 | 0.94 | 0.74 | 17 |
 | Hype | 0.89 | 0.81 | 0.85 | 0.88 | 0.71 | 0.79 | 21 |
 | Discussion | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 5 |
 
-### Fine-tuned confusion matrix (test set)
-Rows = true label, columns = predicted label.
-
+### Fine-tuned confusion matrix (rows = true, cols = predicted)
 | true ↓ / pred → | Analysis | Hype | Discussion | total |
 |-----------------|---------:|-----:|-----------:|------:|
 | **Analysis**    | 16 | 1 | 0 | 17 |
@@ -65,173 +149,148 @@ Rows = true label, columns = predicted label.
 | **Discussion**  | 4 | 1 | 0 | 5 |
 | **predicted**   | 26 | 17 | 0 | 43 |
 
-(Also rendered in [confusion_matrix.png](confusion_matrix.png). The notebook printed placeholder
-class names `analysis/hot_take/reaction`; by `LABEL_MAP` those are Analysis/Hype/Discussion.)
+(Also [confusion_matrix.png](confusion_matrix.png). The notebook printed placeholder names
+`analysis/hot_take/reaction`; by `LABEL_MAP` those are Analysis/Hype/Discussion.)
 
-### Verdict against success criteria (planning.md §6)
-- Macro-F1 ≥ 0.70 target: **not met** (baseline 0.54, fine-tuned 0.51).
+### Verdict vs. success criteria (planning.md §6)
+- Macro-F1 ≥ 0.70 target: **not met** (0.54 / 0.51).
 - Fine-tuned beats baseline by ≥ 0.03: **not met** — fine-tuning was slightly **worse**.
-- This is reported honestly as a **core result**, which planning.md §6 anticipated: *a 70B model
-  with strong priors plausibly wins over DistilBERT fine-tuned on only ~200 imbalanced examples.*
+- Reported honestly as a **core result**: a 70B model's zero-shot priors beat DistilBERT fine-tuned
+  on ~200 imbalanced examples — exactly the outcome planning.md §6 flagged as plausible.
 
 ### Sample classifications (fine-tuned model)
+Five test posts with predicted label + confidence (max softmax). ✓ correct, ✗ wrong.
 
-Five test posts run through the fine-tuned model, with predicted label and confidence
-(max softmax probability). ✓ = correct, ✗ = wrong.
-
-| Post (excerpt) | Predicted | Confidence | True | |
-|----------------|-----------|-----------:|------|---|
-| "The next Financial Crisis is here … it's not just an AI bubble, it's a systemic collapse" | Analysis | 0.459 | Analysis | ✓ |
+| Post (excerpt) | Predicted | Conf. | True | |
+|----------------|-----------|------:|------|---|
+| "The next Financial Crisis is here … not just an AI bubble, a systemic collapse" | Analysis | 0.459 | Analysis | ✓ |
 | "Went full retard with my kid's college savings. WEN lambo?" | Hype | 0.429 | Hype | ✓ |
 | "60k in BYND" | Hype | 0.423 | Hype | ✓ |
-| "Betting on BTC to crash by end of week. No analysis, this thought came to me in a dream. Puts on $COIN … purely on vibes" | Analysis | 0.408 | Hype | ✗ |
-| "Closed frontiers vs. Open source. How can the IPOs be justified by investors pouring in billions?" | Analysis | 0.428 | Discussion | ✗ |
+| "Betting on BTC to crash. No analysis, came to me in a dream. Puts on $COIN … purely on vibes" | Analysis | 0.408 | Hype | ✗ |
+| "Closed frontiers vs. Open source. How can the IPOs be justified…?" | Analysis | 0.428 | Discussion | ✗ |
 
-**Why the correct ones are reasonable:**
-- The **Analysis** prediction is right because the post builds a reasoned systemic-risk argument
-  (a thesis with supporting reasoning that stands on its own) — exactly the evidence-based-argument
-  signal the Analysis label is defined by.
-- The **"kid's college savings … WEN lambo?"** → **Hype** is right because it's a reckless personal
-  bet with a lambo/moon meme and zero reasoning — the textbook Hype pattern (own bet + emotion, no
-  argument).
+- **Why the Analysis call is right:** the post builds a reasoned systemic-risk thesis that stands on
+  its own — the evidence-based-argument signal the Analysis label is defined by.
+- **Why the "kid's college savings… WEN lambo?" → Hype is right:** a reckless personal bet with a
+  lambo/moon meme and zero reasoning — the textbook Hype pattern.
+- **Note:** confidence is uniformly low (~0.40–0.46) and failures score in the *same* range as
+  successes, so the model can't self-flag its errors — consistent with the underfit finding in §3.
 
-**Two things these samples expose:**
-1. **Confidence is uniformly low (~0.40–0.46), barely above the 0.33 three-class random floor.**
-   The model is uncertain and poorly calibrated even when correct — unsurprising given only ~200
-   training examples. Confidence is therefore not a reliable filter here.
-2. **The failures are confident-looking in the same range as the successes** (the BTC "no analysis"
-   post scores 0.408 for Analysis; the open-source question 0.428). The model can't separate right
-   from wrong by confidence, reinforcing that it classifies on surface vocabulary, not function.
+---
 
-## Error analysis (fine-tuned model)
+## 6. Error analysis (fine-tuned model)
 
 **Process:** exported all 12 misclassified test posts, used an LLM (Claude Opus 4.8) to surface
-candidate patterns, then verified each by re-reading the posts — correcting/discarding the ones
-that didn't hold. Full write-up: [results/error_analysis.md](results/error_analysis.md);
-rows: [results/misclassified_finetuned.csv](results/misclassified_finetuned.csv).
+candidate patterns, then verified each by re-reading — correcting/discarding the ones that didn't
+hold. Full write-up: [results/error_analysis.md](results/error_analysis.md); rows:
+[results/misclassified_finetuned.csv](results/misclassified_finetuned.csv).
 
-### Which labels are confused? (directional pattern)
-**10 of 12 errors flow *into* Analysis:** 6 Hype→Analysis and 4 Discussion→Analysis. Only 2 go the
-other way (1 Analysis→Hype, 1 Discussion→Hype), and **Discussion is never predicted at all** (its
-column is empty). So the model has learned Analysis and Hype but has **no working boundary for
-Discussion**, and it defaults ambiguous posts to Analysis.
+**Directional pattern:** **10 of 12 errors flow into Analysis** (6 Hype→Analysis, 4
+Discussion→Analysis); only 2 go elsewhere; **Discussion is never predicted** (empty column). The
+model learned Analysis and Hype but has no working boundary for Discussion and defaults ambiguous
+posts to Analysis.
 
-### Three specific failures, and *why* each failed
+**Three specific wrong predictions:**
 
-**1. Hype → Analysis — "Betting on BTC to crash by end of week"** (len 399)
-> *"No analysis, this thought came to me in a dream. Puts on $COIN because it's a BTC proxy, puts
-> on $PLTR because I don't like the stock™ … purely on vibes, one last YOLO."*
-- **Why it failed:** the post *literally states it has no analysis*, but the tickers ($COIN, $PLTR),
-  "proxy," and "macro events" are surface features the model associates with Analysis. It classifies
-  on **vocabulary, not function**. This is the single clearest piece of evidence that the model
-  keys on surface cues over meaning.
-- **Labeling or data problem?** Data. The label is unambiguously Hype and consistent with similar
-  YOLO posts. The model simply never learned that ticker/jargon presence ≠ argument.
+1. **Hype → Analysis — "Betting on BTC to crash"** — *"No analysis, this came to me in a dream …
+   puts on $COIN … purely on vibes."* The post *says* it has no analysis, but tickers + "proxy" +
+   "macro" (Analysis-register vocabulary) win. → the model classifies on **vocabulary, not
+   function.** *Data problem, not labeling:* the label is unambiguous and consistent with other
+   YOLO posts.
+2. **Discussion → Analysis — silver "META THREAD" rant** — long, finance-heavy, argument-*shaped*,
+   but its function is a rant that links to *other people's* DD. The model can't tell "argues a
+   thesis" from "rants about a topic," and Discussion is too rare (~22 train) to have any
+   representation. *Class-imbalance problem.*
+3. **Analysis → Hype — "Yen Tsunami Coming"** — short, real causal chain (Japan sells $1.21T
+   treasuries → buy UVXY) but ends with a personal position + a question. Little jargon + a visible
+   bet tips it to Hype. *Partly the boundary itself* — a thesis + bet + question genuinely sits on
+   the Analysis↔Hype edge (planning.md §3); a defensible call either way.
 
-**2. Discussion → Analysis — silver "META THREAD" rant** (len 4161)
-> *"WHY YOU SHOULD NOT FALL FOR ALL THE SILVER SCAMS!!! … THIS IS A META THREAD IN WHICH I'M JUST
-> DOING 2 THINGS: RANTING AND LINKING TO OTHER DD THREADS…"*
-- **Why it failed:** it's long, finance-heavy, and argument-*shaped*, so it looks like DD — but its
-  actual function is a rant/PSA that opens a topic and points at *other people's* analyses. The
-  model can't tell "argues a thesis" from "rants about a topic," and Discussion is so rare in
-  training (~22 examples) it has no representation to fall back on.
-- **Labeling or data problem?** Data / class imbalance. Discussion is 11% of the set and collapses
-  entirely; the boundary is under-trained, not mislabeled.
+**Labeling vs. data problem:** verified **data/boundary**, not annotation inconsistency — 0
+duplicate/near-duplicate texts, 0 IDs with two labels, similar posts labeled consistently. ~2–3 of
+the 12 are genuinely debatable boundary cases, so true error is marginally better than 12/43.
 
-**3. Analysis → Hype — "Yen Tsunami Coming"** (len 309)
-> *"Japan's finance minister said they'd shore up the yen … that most likely means they sell US
-> treasuries (a $1.21T position). If they sell, what's your next move? I will be buying UVXY calls."*
-- **Why it failed:** the opposite error, and instructive. It's **short**, states a real causal
-  chain, but ends with a personal position ("buying UVXY calls") and a question. With little
-  surrounding jargon and a visible bet, the model tips it to Hype. Short posts lose the "Analysis"
-  surface signal, and a stated position looks like Hype.
-- **Labeling or data problem?** Partly the **boundary itself** — this genuinely sits on the
-  Analysis↔Hype edge (a real thesis *plus* a bet *plus* a question), the exact hard case in
-  planning.md §3. Reasonable annotators could disagree; the model's call is defensible.
+**Corrected on verification:** I discarded my first guess that "long posts fail" (→Analysis errors
+span 367–4301 chars; length is weak) and the "symmetric Analysis↔Hype confusion" idea (it's
+asymmetric, into Analysis). Kept: surface-vocabulary reliance, Discussion collapse.
 
-### Why is that boundary hard?
-The distinguishing signal is **function, not surface**: a WSB post can carry tickers, TA, and
-valuation words whether it's arguing (Analysis), betting (Hype), or asking (Discussion). Sarcasm
-and self-aware shitposting make it worse — "the TA Gods spoke to me in my sleep" and "came to me
-in a dream" are Hype tells the model reads literally. **Length is a weak secondary factor** (I
-initially hypothesized long posts fail, but the →Analysis errors span 367–4301 chars — I corrected
-this; jargon + argument-shape is the real driver). Short, low-information posts are where the model
-flips *away* from Analysis toward Hype.
+---
 
-### Labeling problem or data/prompt problem?
-**Data/boundary problem, not annotation inconsistency.** I checked the dataset: 0 duplicate or
-near-duplicate texts, 0 IDs mapped to two labels, and similar posts are labeled consistently. So
-the model's errors aren't caused by contradictory labels — they come from (a) Discussion being too
-rare to learn (minority collapse: 0 predictions), and (b) the intrinsic function-vs-surface
-boundary. On re-reading, ~2–3 of the 12 "errors" are genuinely debatable boundary cases (e.g. Yen
-Tsunami; a $10k-bailout *opinion* that also argues), so the true error rate is marginally better
-than 12/43.
+## 7. Reflection: intended vs. captured
 
-### What would need to change to fix it?
-1. **More Discussion examples** — the highest-leverage fix. At ~22 training examples the class
-   collapses; it needs enough real (non-megathread) Discussion posts to be learnable. Genuine
-   Discussion is scarce on WSB, so this likely means broadening sources or accepting the limit.
-2. **Class-weighted loss / minority oversampling** + `metric_for_best_model="f1_macro"` — directly
-   attacks the Discussion=0 collapse without new data; the most promising immediate lever.
-3. **Harder, more diverse boundary examples in training** — explicitly include "jargon-heavy but
-   not an argument" (Hype) and "argument-shaped rant/opinion" (Discussion) so the model learns
-   function over vocabulary.
-4. **More training data overall** — ~200 examples is very small to beat a 70B model's priors.
+**Intended — function.** The labels encode a post's *pragmatic function*: makes an argument that
+stands alone (Analysis), expresses a bet/emotion (Hype), or opens a topic without a thesis or bet
+(Discussion). Substance over surface; humans apply it consistently.
 
-## Reflection: what I intended to capture vs. what the model captured
+**Captured — lexical register.** With ~200 examples the model learned the easiest correlate:
+*"reads like finance-argument prose → Analysis; reads like a bet/meme → Hype."* That overlaps with
+function on the easy cases (hence 0.74–0.79 F1 on the common classes) and diverges exactly on the
+hard ones.
 
-**What the labels were designed to capture — function, not vocabulary.** The taxonomy is defined
-by a post's *dominant pragmatic function*: does it *make an argument that stands on its own*
-(Analysis), *express a bet/emotion* (Hype), or *open a topic without a thesis or bet* (Discussion)?
-The codebook deliberately separates **substance from surface** — "would this stand as an argument
-if you stripped out the poster's position and screenshot?" A post loaded with tickers and TA can
-still be Hype; a plain-language question can be Discussion. That distinction is what makes the task
-interesting, and humans can apply it consistently (the annotation had no label conflicts).
+**Specific failure pattern (not "needs more data"):** a **directional Discussion+Hype → Analysis
+collapse driven by Analysis-register vocabulary.** Concretely: Discussion has **no positive lexical
+signature** of its own — it's defined by *absence* (no thesis, no bet) — so a feature-driven
+boundary trained on ~22 examples never carves out a region for it, and those posts fall into
+whichever register they resemble (usually Analysis). The clearest evidence is the post that says
+"*no analysis*" yet is labeled Analysis because it contains tickers. The model didn't learn a worse
+version of my boundary; it learned a **different, shallower** one. The 70B baseline shows the *same*
+directional gap, so this is partly intrinsic: classes defined by absence/function are hard for
+classifiers keyed on the presence of features. Fix: many more diverse Discussion examples and
+boundary-pinning "jargon-but-not-an-argument" cases, and/or class-weighted loss.
 
-**What the model's decision boundary actually captures — lexical register.** With ~200 examples,
-the model learned the easiest available correlate of the labels: **topical/structural vocabulary**.
-Its effective rule is closer to *"does this read like finance-argument prose (tickers, valuation
-words, TA, structured reasoning)? → Analysis; does it read like a bet/meme (YOLO, lambo, positions,
-emojis, '$X into Y')? → Hype."* That correlates with function often enough to score ~0.79–0.85 F1
-on the two common classes, because Analysis and Hype happen to have distinct registers.
+---
 
-**What it overfit to.** The surface correlation between *finance-argument register* and the
-Analysis label — to the point of ignoring explicit content. It labeled "*No analysis, this came to
-me in a dream … puts on $COIN*" as Analysis, and a conspiracy "theory" and a rant that merely
-*links to* other people's DD as Analysis. Vocabulary and prose-shape became the signal; the actual
-function became invisible. It also picked up register-adjacent cues (length, "DD/thesis/play"
-words) rather than reasoning.
+## 8. AI usage
 
-**What it missed.**
-- **The substance-vs-stance distinction itself** — the core thing the project set out to learn. It
-  cannot tell a real argument from argument-*shaped* hype, which is exactly the hard edge (§3) the
-  labels were built around.
-- **Discussion, entirely (0 predictions).** This is the deepest lesson: Discussion is defined
-  largely by *absence* — no worked thesis, no personal bet — and by pragmatic intent (opening a
-  topic). It has **no positive lexical signature** distinct from Analysis, so a feature-driven
-  boundary trained on ~22 examples never carves out a region for it; those posts fall into whichever
-  register they most resemble (usually Analysis).
-- **Irony and self-aware framing** ("the TA Gods spoke to me in my sleep"), the very cues a human
-  uses to catch hype dressed as DD.
+Two specific, directed uses (both disclosed; more in planning.md §7.4):
 
-**The gap, stated plainly.** My labels are *semantically clean and human-learnable* but *not
-surface-separable at this data scale*. The model didn't learn a worse version of my boundary — it
-learned a **different, shallower boundary** (register) that happens to overlap with mine on the easy
-cases and diverges exactly on the hard ones. Notably the 70B zero-shot baseline shows the *same*
-directional gap (everything → Analysis, Discussion collapses), which says this is partly intrinsic
-to the task: classes defined by *absence* and *function* are structurally hard for text classifiers
-that key on the *presence* of features. Closing the gap needs either many more (and more diverse)
-examples that pin the function-vs-surface boundary explicitly — especially for Discussion — or a
-reframing of the taxonomy so each class has a positive, learnable signal.
+1. **Annotation pre-labeling + review (disclosed AI-assisted labeling).** I directed Claude Opus 4.8
+   to take each flair-bootstrapped post and re-label it against my codebook, in 8 batches, emitting
+   a label + confidence + one-line reason per post. **What I revised/overrode:** the review changed
+   **155/373 labels** — most importantly it caught **~50 daily/weekend megathreads** that carried a
+   "Discussion" flair (the flair bootstrap had accepted them) and dropped them as out-of-frame;
+   I also **overrode the label definitions themselves** after an AI label-stress-test surfaced two
+   gaps, adding the "own-position question → Hype" and "single-assertion → Hype" rules before
+   annotating. Every kept row carries `reviewed_by`, and the difficult rows were re-read by hand.
+2. **Failure-pattern clustering.** I pasted the 12 misclassified test posts to the LLM and asked for
+   common themes. **What I revised/overrode:** I **discarded** its "errors cluster by length"
+   pattern (false — errors span 367–4301 chars) and its "symmetric Analysis↔Hype confusion" claim
+   (the confusion is asymmetric, into Analysis) after re-reading each post; I kept only the patterns
+   I could verify against the confusion matrix.
 
-## Reproduce
+The Groq `llama-3.3-70b-versatile` model is the *evaluated* zero-shot baseline (methodology), not an
+authoring aid.
+
+---
+
+## 9. Spec reflection
+
+**How the spec (planning.md) helped:** pre-registering the metric and thresholds was decisive. By
+committing *in advance* to **macro-F1 as the headline** and to concrete bars (macro-F1 ≥ 0.70, DD
+F1 ≥ 0.65) with an honest "report it if the baseline wins" clause, the disappointing result became
+an *interpretable finding* rather than a scramble — accuracy (0.77) looked fine, but the
+pre-committed macro-F1 lens correctly exposed the Discussion collapse. The codebook's edge-case
+rules likewise kept annotation consistent (0 label conflicts).
+
+**How implementation diverged, and why:** the plan specified collecting via the **Reddit Data API
+(PRAW)**, but mid-project Reddit **gated new Data API app registration** behind a moderation-use
+review, so self-serve credentials were unavailable. I diverged to Reddit's **public `.rss` feeds**,
+which need no authentication and satisfy the "public posts only" rule directly (with rate-limit
+backoff). A second divergence: the plan targeted **~70 examples per label**, but genuine Discussion
+proved so scarce (mostly megathreads/shitposts) that it capped at **32**; rather than pad it with
+low-quality posts, I kept all real data, documented the imbalance, and leaned on the pre-chosen
+macro-F1 — the §4 fallback the plan already specified.
+
+---
+
+## 10. Reproduce
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python collect_data.py          # collect raw pool via public RSS (no auth)
+.venv/bin/python collect_data.py          # raw pool via public RSS (no auth)
 .venv/bin/python collect_discussion.py    # targeted Discussion oversample
 .venv/bin/python build_dataset.py         # merge LLM review -> data/wsb_labeled.csv
-# then run the Colab notebook (Sections 1-2 split/tokenize, 3-4 fine-tune, 5 Groq baseline)
+# then run the Colab notebook: Sec 1-2 split/tokenize, 3-4 fine-tune (T4 GPU), 5 Groq baseline
 ```
 
 ## Repo map
@@ -240,9 +299,4 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 - [data/edge_cases.csv](data/edge_cases.csv) — difficult cases logged during annotation
 - [results/](results/) — baseline, fine-tuned, and error-analysis write-ups
 - [decisions/](decisions/) — per-post LLM review labels (audit trail)
-
-## AI usage
-Disclosed in [planning.md §7.4](planning.md): AI (Claude Opus 4.8) helped refine the label
-taxonomy, stress-test labels, pre-label + review annotations (155/373 labels changed on review),
-and cluster misclassification patterns (verified by hand). The Groq `llama-3.3-70b-versatile`
-model is the *evaluated* zero-shot baseline, not an authoring aid.
+- [confusion_matrix.png](confusion_matrix.png), [evaluation_results.json](evaluation_results.json)
