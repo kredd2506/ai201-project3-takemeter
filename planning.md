@@ -351,6 +351,19 @@ label) and ask an LLM to cluster them into error patterns. What I look for:
 pattern I read the actual posts behind it and confirm it against the confusion matrix and a
 minimum number of supporting examples; unsupported patterns are dropped from the writeup.
 
+### 7.3.1 Baseline (zero-shot) error reflection — hypothesis to test after fine-tuning
+Numbers saved in `results/baseline_groq_zeroshot.md`: accuracy 0.767, macro-F1 0.54;
+Analysis P0.67/R0.94/F1 0.78, Hype P0.89/R0.81/F1 0.85, **Discussion 0.00 (0/5)**.
+
+**Where it struggled:** Discussion collapses entirely; Analysis is over-predicted (high recall,
+low precision). **Hypothesis:** the baseline keys on surface cues (tickers, finance jargon,
+argument-shaped prose) rather than dominant function, defaulting substantive-sounding posts to
+Analysis and failing to recognize Discussion (question/opinion with no worked thesis). Predicted
+confusion: mostly **Discussion→Analysis** (all 5) plus some **Hype→Analysis** (directional-
+conviction edge). Fine-tuning should lift Analysis precision and give Discussion nonzero recall,
+but Discussion stays weakest (~5 test / 32 train → noisy). To be confirmed against the baseline
+and fine-tuned confusion matrices.
+
 ### 7.4 AI usage disclosure (running log)
 Where AI tools were used (tool: **Claude Opus 4.8**, unless noted):
 - **(a) Label taxonomy & codebook** — refined the three labels and tie-break rules after a
