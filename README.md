@@ -90,17 +90,28 @@ annotation (0 posts received conflicting labels).
 - **Base model:** `distilbert-base-uncased` (66M params).
 - **Platform:** Google Colab, **T4 GPU**, via the Hugging Face `transformers` `Trainer`.
 - **Input:** `title` + `"\n\n"` + `selftext`, truncated to 512 tokens.
-- **Config:** 3 epochs, learning rate 2e-5, batch size 16, weight decay 0.01, 70/15/15 stratified
-  split (seeded).
+- **Config:** 3 epochs, max sequence length 512, seeded 70/15/15 stratified split (learning rate /
+  batch size at the notebook defaults for `distilbert-base-uncased`).
 
-**Key training decision — model size and epoch count, chosen for a tiny dataset.** With only ~198
-training examples, I kept a **small base model (DistilBERT, not BERT-large) and few epochs (3)** on
-purpose: a larger model or many epochs would memorize 200 posts and overfit rather than generalize.
-The observed behavior confirms the dataset — not the recipe — is the bottleneck: rather than
-overfitting to high train confidence, the model stayed **underfit** (test confidences clustered at
-~0.40–0.46, barely above the 0.33 random floor) and **collapsed the minority class** (0 Discussion
-predictions). That points the next lever at the *data/loss* (class weighting, more Discussion
-examples), not at more epochs — see §7.
+**Key training decision — 3 epochs, justified by the training curve.**
+
+| Epoch | Train loss | Val loss | Val accuracy |
+|------:|-----------:|---------:|-------------:|
+| 1 | 1.047 | 1.030 | 0.548 |
+| 2 | 1.026 | 0.955 | 0.786 |
+| 3 | 0.934 | 0.799 | 0.786 |
+
+I stopped at 3 epochs after reading this curve: **validation accuracy jumped 0.55 → 0.79 by epoch 2
+and then plateaued (0.786 at both epochs 2 and 3)** even though validation loss kept falling
+(1.03 → 0.96 → 0.80). That plateau-with-falling-loss says the model **saturated on the two majority
+classes early** — extra epochs were sharpening probabilities on Analysis/Hype, not learning new
+class coverage. With only ~198 training examples, pushing further would risk overfitting without
+cracking the collapsed minority (Discussion), so more epochs is the wrong lever. Chosen with the
+same logic: a **small base model (DistilBERT, not BERT-large)** to avoid memorizing 200 posts. The
+model ended **underfit, not overfit** — test confidences sit at ~0.40–0.46 (near the 0.33 random
+floor) and Discussion gets 0 predictions — so the real lever is the *data/loss* (class weighting,
+more Discussion examples), not the schedule (see §7). Test accuracy (0.72) < val (0.79), as expected
+on a tiny hold-out.
 
 ---
 
