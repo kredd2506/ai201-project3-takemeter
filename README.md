@@ -313,6 +313,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
 ## Repo map
+- [DEMO.md](DEMO.md) — demo script: 5 linked posts classified (label + confidence), correct/incorrect narration, report walkthrough
 - [planning.md](planning.md) — community, labels, edge cases, metrics, success criteria, AI plan
 - [data/wsb_labeled.csv](data/wsb_labeled.csv) — the single labeled dataset (283 rows)
 - [data/edge_cases.csv](data/edge_cases.csv) — difficult cases logged during annotation
