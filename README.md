@@ -74,6 +74,35 @@ class names `analysis/hot_take/reaction`; by `LABEL_MAP` those are Analysis/Hype
 - This is reported honestly as a **core result**, which planning.md §6 anticipated: *a 70B model
   with strong priors plausibly wins over DistilBERT fine-tuned on only ~200 imbalanced examples.*
 
+### Sample classifications (fine-tuned model)
+
+Five test posts run through the fine-tuned model, with predicted label and confidence
+(max softmax probability). ✓ = correct, ✗ = wrong.
+
+| Post (excerpt) | Predicted | Confidence | True | |
+|----------------|-----------|-----------:|------|---|
+| "The next Financial Crisis is here … it's not just an AI bubble, it's a systemic collapse" | Analysis | 0.459 | Analysis | ✓ |
+| "Went full retard with my kid's college savings. WEN lambo?" | Hype | 0.429 | Hype | ✓ |
+| "60k in BYND" | Hype | 0.423 | Hype | ✓ |
+| "Betting on BTC to crash by end of week. No analysis, this thought came to me in a dream. Puts on $COIN … purely on vibes" | Analysis | 0.408 | Hype | ✗ |
+| "Closed frontiers vs. Open source. How can the IPOs be justified by investors pouring in billions?" | Analysis | 0.428 | Discussion | ✗ |
+
+**Why the correct ones are reasonable:**
+- The **Analysis** prediction is right because the post builds a reasoned systemic-risk argument
+  (a thesis with supporting reasoning that stands on its own) — exactly the evidence-based-argument
+  signal the Analysis label is defined by.
+- The **"kid's college savings … WEN lambo?"** → **Hype** is right because it's a reckless personal
+  bet with a lambo/moon meme and zero reasoning — the textbook Hype pattern (own bet + emotion, no
+  argument).
+
+**Two things these samples expose:**
+1. **Confidence is uniformly low (~0.40–0.46), barely above the 0.33 three-class random floor.**
+   The model is uncertain and poorly calibrated even when correct — unsurprising given only ~200
+   training examples. Confidence is therefore not a reliable filter here.
+2. **The failures are confident-looking in the same range as the successes** (the BTC "no analysis"
+   post scores 0.408 for Analysis; the open-source question 0.428). The model can't separate right
+   from wrong by confidence, reinforcing that it classifies on surface vocabulary, not function.
+
 ## Error analysis (fine-tuned model)
 
 **Process:** exported all 12 misclassified test posts, used an LLM (Claude Opus 4.8) to surface
